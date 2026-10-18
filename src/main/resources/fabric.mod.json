@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "arecareco",
+  "version": "${version}",
+  "name": "Arena Reco",
+  "description": "Snapshot a Minecraft arena and restore its blocks with /reco.",
+  "authors": ["flexan735-alt"],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.mocapstudio.RecoMod"]
+  },
+  "depends": {
+    "minecraft": "1.21.11",
+    "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
+    "java": ">=21"
+  }
+}

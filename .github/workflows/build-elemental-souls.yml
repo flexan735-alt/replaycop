@@ -3,9 +3,6 @@ name: Build Elemental Souls
 on:
   push:
     branches: [elemental-souls]
-    paths:
-      - "elemental-souls/**"
-      - ".github/workflows/build-elemental-souls.yml"
   workflow_dispatch:
 
 permissions:
@@ -28,7 +25,7 @@ jobs:
           gradle-version: "9.2.1"
       - name: Build mod
         working-directory: elemental-souls
-        run: gradle build
+        run: gradle build --no-daemon
       - name: Upload JAR
         uses: actions/upload-artifact@v4
         with:

@@ -4,6 +4,8 @@ import com.mojang.brigadier.CommandDispatcher;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.particles.ParticleOptions;
@@ -14,7 +16,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
-import net.minecraft.world.phys.Vec3;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -25,34 +26,56 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class ElementalSouls implements ModInitializer {
     private static final Map<UUID, SoulType> SOULS = new HashMap<>();
     private static final Map<UUID, Bridge> BRIDGES = new HashMap<>();
+    private static final double[][] BODY_POINTS = {
+        {0.00, 1.78, 0.00}, {-0.10, 1.72, 0.00}, {0.10, 1.72, 0.00},
+        {0.00, 1.48, 0.00}, {-0.22, 1.42, 0.00}, {0.22, 1.42, 0.00},
+        {-0.34, 1.25, 0.00}, {0.34, 1.25, 0.00}, {-0.40, 1.07, 0.00},
+        {0.40, 1.07, 0.00}, {0.00, 1.25, 0.00}, {0.00, 1.06, 0.00},
+        {0.00, 0.88, 0.00}, {-0.14, 0.82, 0.00}, {0.14, 0.82, 0.00},
+        {-0.14, 0.62, 0.00}, {0.14, 0.62, 0.00}, {-0.15, 0.40, 0.00},
+        {0.15, 0.40, 0.00}, {-0.17, 0.12, 0.02}, {0.17, 0.12, 0.02}
+    };
     private static long tickCounter;
 
     private enum SoulType { FIRE, WATER }
 
     private static final class Bridge {
+        private final UUID id;
         private final ServerLevel world;
         private final double x, y, z, dx, dz;
         private final boolean water;
         private int age;
 
         private Bridge(ServerLevel world, ServerPlayer player, boolean water) {
+            this.id = player.getUUID();
             this.world = world;
             this.water = water;
             double yaw = Math.toRadians(player.getYRot());
             this.dx = -Math.sin(yaw);
             this.dz = Math.cos(yaw);
-            this.x = player.getX() + dx * 1.5;
+            // Put the start directly under the caster so the first step is supported.
+            this.x = player.getX() + dx * 0.25;
             this.y = player.getY();
-            this.z = player.getZ() + dz * 1.5;
+            this.z = player.getZ() + dz * 0.25;
         }
 
         private double surface(double t) {
-            return y + Math.sin(Math.PI * t) * 1.65;
+            double u = Math.max(0.0, Math.min(1.0, t));
+            return y + Math.sin(Math.PI * u) * 1.65;
+        }
+
+        private String dimension() {
+            return world.dimension().location().toString();
+        }
+
+        private BridgeSyncPayload payload(boolean remove) {
+            return new BridgeSyncPayload(id, dimension(), x, y, z, dx, dz, water, age, remove);
         }
     }
 
     @Override
     public void onInitialize() {
+        PayloadTypeRegistry.playS2C().register(BridgeSyncPayload.TYPE, BridgeSyncPayload.CODEC);
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> registerCommands(dispatcher));
         ServerTickEvents.END_SERVER_TICK.register(ElementalSouls::tick);
     }
@@ -87,11 +110,33 @@ public final class ElementalSouls implements ModInitializer {
 
     private static int summonBridge(CommandSourceStack source, boolean water) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
-        BRIDGES.put(player.getUUID(), new Bridge((ServerLevel) player.level(), player, water));
+        UUID owner = player.getUUID();
+
+        Bridge previous = BRIDGES.remove(owner);
+        if (previous != null) removeBridge(previous);
+
+        Bridge bridge = new Bridge((ServerLevel) player.level(), player, water);
+        BRIDGES.put(owner, bridge);
+        BridgeRegistry.upsert(owner, bridge.dimension(), bridge.x, bridge.y, bridge.z,
+            bridge.dx, bridge.dz, bridge.water, bridge.age);
+        broadcastBridge(bridge, false);
+
         source.sendSuccess(() -> Component.literal(water
-            ? "🌊 Water Bridge summoned! It forms from particles, stays for 25 seconds, then dissolves."
-            : "🔥 Fire Bridge summoned! It forms from particles, stays for 25 seconds, then dissolves."), false);
+            ? "🌊 Particle bridge summoned! Watch it build, then cross safely."
+            : "🔥 Particle bridge summoned! Watch it build, then cross safely."), false);
         return 1;
+    }
+
+    private static void broadcastBridge(Bridge bridge, boolean remove) {
+        BridgeSyncPayload payload = bridge.payload(remove);
+        for (ServerPlayer viewer : bridge.world.players()) {
+            ServerPlayNetworking.send(viewer, payload);
+        }
+    }
+
+    private static void removeBridge(Bridge bridge) {
+        BridgeRegistry.remove(bridge.id);
+        broadcastBridge(bridge, true);
     }
 
     private static void setSoul(ServerPlayer player, SoulType type) {
@@ -109,128 +154,58 @@ public final class ElementalSouls implements ModInitializer {
 
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             SoulType soul = SOULS.get(player.getUUID());
-            if (soul != null) {
-                if (tickCounter % 20 == 0) {
-                    player.addEffect(new MobEffectInstance(MobEffects.INVISIBILITY, 60, 0, false, false, false));
-                    if (soul == SoulType.FIRE) {
-                        player.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, 60, 0, false, false, false));
-                        player.clearFire();
-                    }
-                }
-                emitSoulBody(player, soul);
-            }
+            if (soul == null) continue;
 
-            for (Bridge bridge : BRIDGES.values()) {
-                if (bridge.world == (ServerLevel) player.level() && bridge.age >= 100 && bridge.age < 600) {
-                    supportPlayerOnBridge(player, bridge);
+            if (tickCounter % 20 == 0) {
+                player.addEffect(new MobEffectInstance(MobEffects.INVISIBILITY, 60, 0, false, false, false));
+                if (soul == SoulType.FIRE) {
+                    player.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, 60, 0, false, false, false));
+                    player.clearFire();
                 }
             }
+            emitSoulBody(player, soul);
         }
 
         Iterator<Map.Entry<UUID, Bridge>> iterator = BRIDGES.entrySet().iterator();
         while (iterator.hasNext()) {
             Bridge bridge = iterator.next().getValue();
             bridge.age++;
-            if (bridge.age > 640) {
-                burstAndRemove(bridge);
+
+            if (bridge.age >= 640) {
+                removeBridge(bridge);
                 iterator.remove();
                 continue;
             }
-            if (bridge.age % 2 == 0) drawBridge(bridge);
-            if (bridge.age == 600) burstAndRemove(bridge);
+
+            BridgeRegistry.setAge(bridge.id, bridge.age);
         }
     }
 
     private static void emitSoulBody(ServerPlayer player, SoulType soul) {
         ServerLevel world = (ServerLevel) player.level();
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        for (int i = 0; i < 24; i++) {
-            double h = random.nextDouble(0.08, 1.92);
-            double radius = h < 0.35 ? 0.22 : (h > 1.55 ? 0.20 : 0.34);
-            double angle = random.nextDouble(Math.PI * 2.0);
-            double px = player.getX() + Math.cos(angle) * radius;
-            double pz = player.getZ() + Math.sin(angle) * radius;
-            double py = player.getY() + h;
+        boolean moving = player.getDeltaMovement().horizontalDistanceSqr() > 0.0025;
+        // 3 particles/tick while moving (was 24); 5 while still, keeping a readable silhouette.
+        int amount = moving ? 3 : 5;
+        for (int i = 0; i < amount; i++) {
+            int index = Math.floorMod((int) (tickCounter * amount + i * 7L), BODY_POINTS.length);
+            double[] point = BODY_POINTS[index];
+            double jitter = moving ? 0.045 : 0.065;
+            double px = player.getX() + point[0] + random.nextDouble(-jitter, jitter);
+            double py = player.getY() + point[1] + random.nextDouble(-jitter, jitter);
+            double pz = player.getZ() + point[2] + random.nextDouble(-jitter, jitter);
+
             ParticleOptions particle;
             if (soul == SoulType.FIRE) {
-                particle = random.nextInt(5) == 0 ? ParticleTypes.SOUL_FIRE_FLAME : ParticleTypes.FLAME;
+                particle = random.nextInt(6) == 0 ? ParticleTypes.SOUL_FIRE_FLAME : ParticleTypes.FLAME;
             } else {
-                int pick = random.nextInt(3);
+                int pick = random.nextInt(4);
                 particle = pick == 0 ? ParticleTypes.SPLASH
                     : pick == 1 ? ParticleTypes.DRIPPING_WATER
-                    : ParticleTypes.BUBBLE;
+                    : pick == 2 ? ParticleTypes.BUBBLE
+                    : ParticleTypes.END_ROD;
             }
-            world.sendParticles(particle, px, py, pz, 1, 0.035, 0.045, 0.035, 0.005);
-        }
-    }
-
-    private static void drawBridge(Bridge bridge) {
-        double progress = bridge.age < 100 ? bridge.age / 100.0 : 1.0;
-        if (bridge.age >= 600) progress = Math.max(0.0, 1.0 - (bridge.age - 600) / 40.0);
-        int segments = Math.max(1, (int) Math.ceil(25.0 * progress));
-        ParticleOptions deck = bridge.water ? ParticleTypes.BUBBLE : ParticleTypes.FLAME;
-        ParticleOptions accent = bridge.water ? ParticleTypes.SPLASH : ParticleTypes.SOUL_FIRE_FLAME;
-        ParticleOptions rail = bridge.water ? ParticleTypes.DRIPPING_WATER : ParticleTypes.FLAME;
-        double px = -bridge.dz;
-        double pz = bridge.dx;
-
-        for (int i = 0; i <= segments; i++) {
-            double t = i / 25.0;
-            double cx = bridge.x + bridge.dx * i;
-            double cz = bridge.z + bridge.dz * i;
-            double cy = bridge.surface(t);
-
-            for (int lane = -1; lane <= 1; lane++) {
-                double side = lane * 0.82;
-                bridge.world.sendParticles(deck, cx + px * side, cy + 0.035, cz + pz * side,
-                    1, 0.025, 0.025, 0.025, 0.0);
-            }
-
-            for (int sideSign : new int[]{-1, 1}) {
-                double side = sideSign * 1.28;
-                bridge.world.sendParticles(rail, cx + px * side, cy + 0.72, cz + pz * side,
-                    1, 0.025, 0.025, 0.025, 0.0);
-                if (i % 2 == 0) {
-                    for (int post = 1; post <= 4; post++) {
-                        bridge.world.sendParticles(accent, cx + px * side, cy + post * 0.14, cz + pz * side,
-                            1, 0.01, 0.02, 0.01, 0.0);
-                    }
-                }
-            }
-
-            if (i % 3 == 0) {
-                bridge.world.sendParticles(accent, cx, cy + 0.14, cz, 2, 0.18, 0.05, 0.18, 0.01);
-            }
-        }
-    }
-
-    private static void supportPlayerOnBridge(ServerPlayer player, Bridge bridge) {
-        double rx = player.getX() - bridge.x;
-        double rz = player.getZ() - bridge.z;
-        double along = rx * bridge.dx + rz * bridge.dz;
-        double side = rx * -bridge.dz + rz * bridge.dx;
-        if (along < 0.0 || along > 25.0 || Math.abs(side) > 1.18) return;
-
-        double surfaceY = bridge.surface(along / 25.0);
-        Vec3 velocity = player.getDeltaMovement();
-        double feetY = player.getY();
-        if (velocity.y <= 0.08 && feetY <= surfaceY + 0.25 && feetY >= surfaceY - 1.65) {
-            player.setPos(player.getX(), surfaceY, player.getZ());
-            player.setDeltaMovement(velocity.x, 0.0, velocity.z);
-            player.resetFallDistance();
-            player.setOnGround(true);
-            if (!bridge.water) player.clearFire();
-        }
-    }
-
-    private static void burstAndRemove(Bridge bridge) {
-        ParticleOptions burst = bridge.water ? ParticleTypes.SPLASH : ParticleTypes.FLAME;
-        for (int i = 0; i <= 25; i++) {
-            double t = i / 25.0;
-            double x = bridge.x + bridge.dx * i;
-            double z = bridge.z + bridge.dz * i;
-            double y = bridge.surface(t);
-            bridge.world.sendParticles(burst, x, y + 0.2, z, 8, 0.35, 0.2, 0.35, 0.04);
+            world.sendParticles(particle, px, py, pz, 1, 0.015, 0.025, 0.015, 0.002);
         }
     }
 }

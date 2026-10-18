@@ -65,7 +65,7 @@ public final class ElementalSouls implements ModInitializer {
         }
 
         private String dimension() {
-            return world.dimension().location().toString();
+            return world.dimension().identifier().toString();
         }
 
         private BridgeSyncPayload payload(boolean remove) {

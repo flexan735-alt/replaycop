@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.borb.elementalsouls.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "EntityBridgeCollisionMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -20,7 +20,7 @@ public record BridgeSyncPayload(
         new Type<>(Identifier.fromNamespaceAndPath("elemental_souls", "bridge_sync"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, BridgeSyncPayload> CODEC =
-        StreamCodec.of(BridgeSyncPayload::encode, BridgeSyncPayload::decode);
+        StreamCodec.of((buf, payload) -> payload.encode(buf), BridgeSyncPayload::decode);
 
     private void encode(RegistryFriendlyByteBuf buf) {
         buf.writeUUID(id);

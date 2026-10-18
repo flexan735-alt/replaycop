@@ -36,7 +36,7 @@ public final class ElementalSoulsClient implements ClientModInitializer {
 
     private static void renderParticleBridges(Minecraft client) {
         if (client.level == null || client.level.getGameTime() % 4 != 0) return;
-        String currentDimension = client.level.dimension().location().toString();
+        String currentDimension = client.level.dimension().identifier().toString();
 
         for (BridgeRegistry.BridgeData bridge : BridgeRegistry.snapshot()) {
             if (!bridge.dimension.equals(currentDimension) || bridge.age >= 640) continue;

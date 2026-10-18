@@ -3,15 +3,21 @@
   "id": "elemental_souls",
   "version": "${version}",
   "name": "Elemental Souls",
-  "description": "Transform into living fire or water particles and summon animated, walkable particle bridges.",
+  "description": "Transform into fire or water particles and summon animated, fully walkable particle-only Japanese bridges.",
   "authors": ["Borb"],
   "license": "MIT",
   "environment": "*",
   "entrypoints": {
     "main": [
       "com.borb.elementalsouls.ElementalSouls"
+    ],
+    "client": [
+      "com.borb.elementalsouls.ElementalSoulsClient"
     ]
   },
+  "mixins": [
+    "elemental_souls.mixins.json"
+  ],
   "depends": {
     "fabricloader": ">=0.18.1",
     "minecraft": "~1.21.11",

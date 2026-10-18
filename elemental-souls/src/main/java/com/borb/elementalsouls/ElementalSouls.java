@@ -87,7 +87,7 @@ public final class ElementalSouls implements ModInitializer {
 
     private static int summonBridge(CommandSourceStack source, boolean water) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
-        BRIDGES.put(player.getUUID(), new Bridge(player.serverLevel(), player, water));
+        BRIDGES.put(player.getUUID(), new Bridge((ServerLevel) player.level(), player, water));
         source.sendSuccess(() -> Component.literal(water
             ? "🌊 Water Bridge summoned! It forms from particles, stays for 25 seconds, then dissolves."
             : "🔥 Fire Bridge summoned! It forms from particles, stays for 25 seconds, then dissolves."), false);
@@ -121,7 +121,7 @@ public final class ElementalSouls implements ModInitializer {
             }
 
             for (Bridge bridge : BRIDGES.values()) {
-                if (bridge.world == player.serverLevel() && bridge.age >= 100 && bridge.age < 600) {
+                if (bridge.world == (ServerLevel) player.level() && bridge.age >= 100 && bridge.age < 600) {
                     supportPlayerOnBridge(player, bridge);
                 }
             }
@@ -142,7 +142,7 @@ public final class ElementalSouls implements ModInitializer {
     }
 
     private static void emitSoulBody(ServerPlayer player, SoulType soul) {
-        ServerLevel world = player.serverLevel();
+        ServerLevel world = (ServerLevel) player.level();
         ThreadLocalRandom random = ThreadLocalRandom.current();
         for (int i = 0; i < 24; i++) {
             double h = random.nextDouble(0.08, 1.92);
@@ -217,7 +217,7 @@ public final class ElementalSouls implements ModInitializer {
         if (velocity.y <= 0.08 && feetY <= surfaceY + 0.25 && feetY >= surfaceY - 1.65) {
             player.setPos(player.getX(), surfaceY, player.getZ());
             player.setDeltaMovement(velocity.x, 0.0, velocity.z);
-            player.fallDistance = 0.0F;
+            player.resetFallDistance();
             player.setOnGround(true);
             if (!bridge.water) player.clearFire();
         }

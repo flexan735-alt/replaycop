@@ -77,7 +77,7 @@ public final class BridgeRegistry {
     public static Vec3 adjustMovement(Entity entity, Vec3 movement) {
         if (!(entity instanceof Player)) return movement;
 
-        String dimension = entity.level().dimension().location().toString();
+        String dimension = entity.level().dimension().identifier().toString();
         double currentY = entity.getY();
         double destinationX = entity.getX() + movement.x;
         double destinationY = currentY + movement.y;

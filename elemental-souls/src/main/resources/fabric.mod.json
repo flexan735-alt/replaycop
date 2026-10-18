@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "elemental_souls",
+  "version": "${version}",
+  "name": "Elemental Souls",
+  "description": "Transform into living fire or water particles and summon animated, walkable particle bridges.",
+  "authors": ["Borb"],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.borb.elementalsouls.ElementalSouls"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.1",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

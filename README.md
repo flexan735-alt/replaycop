@@ -1,15 +1,17 @@
-# Mocap Studio (Fabric, Minecraft 1.21.11, Mojang mappings)
+# Fly in Survival (Fabric, Minecraft 1.21.11, Mojang mappings)
 
 ## Build
-1. Easiest: generate a fresh template at https://fabricmc.net/develop (1.21.11, **Mojang mappings**, Fabric API),
-   then copy `src/` over the template's `src/` (replace fabric.mod.json) and keep the template's gradle files.
-   Or use the included build.gradle/gradle.properties (check the versions at the same site) and run `gradle wrapper && ./gradlew build`.
-2. Jar appears in `build/libs/` (use the one WITHOUT `-sources`). Put it in `.minecraft/mods` with Fabric API.
+1. Easiest: generate a fresh template at https://fabricmc.net/develop (1.21.11, **Mojang mappings**, Fabric API), then copy `src/` over the template's `src/` and keep the template's Gradle files.
+2. Or use the included Gradle files and run `gradle wrapper && ./gradlew build`.
+3. The jar appears in `build/libs/` as `fly-in-survival-1.0.0.jar`. Put it in `.minecraft/mods` with Fabric API.
 
 ## Use
-Press **M** in-game. Or commands: /studio record <name> [scene], /studio stop, /studio play <name> [relative],
-/studio scene create|add|remove|delete, /studio playscene <scene> [relative], /studio skin ..., /studio clear.
-Files live in `.minecraft/mocapstudio/`.
+In a world where you have permission to use commands, run:
+
+- `/fly on` to enable flight in Survival or Adventure. Double-tap jump to start flying.
+- `/fly off` to disable flight and stop flying.
+
+The `/fly` command requires permission level 2 (operator/cheats) and changes only the command-running player. In multiplayer, the mod must be installed on the server.
 
 ## No Java setup? Build online
-Push this folder to a free GitHub repo. The Actions tab builds the jar and offers it as a download (artifact "mocap-studio-jar").
+The GitHub Actions workflow builds the mod and offers it as the `fly-in-survival-jar` artifact.

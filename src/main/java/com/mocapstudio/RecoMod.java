@@ -8,6 +8,8 @@ import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.permissions.Permission;
+import net.minecraft.server.permissions.PermissionLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -32,6 +34,30 @@ public final class RecoMod implements ModInitializer {
             .then(Commands.literal("pos1").executes(ctx -> setCorner(ctx.getSource(), true)))
             .then(Commands.literal("pos2").executes(ctx -> setCorner(ctx.getSource(), false)))
             .then(Commands.literal("cancel").executes(ctx -> cancel(ctx.getSource()))));
+
+        dispatcher.register(Commands.literal("fly")
+            .requires(source -> source.permissions().hasPermission(
+                new Permission.HasCommandLevel(PermissionLevel.GAMEMASTERS)))
+            .then(Commands.literal("on").executes(ctx -> setFlight(ctx.getSource(), true)))
+            .then(Commands.literal("off").executes(ctx -> setFlight(ctx.getSource(), false))));
+    }
+
+    private static int setFlight(CommandSourceStack source, boolean enabled) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            player.getAbilities().mayfly = enabled;
+            if (!enabled) {
+                player.getAbilities().flying = false;
+            }
+            player.onUpdateAbilities();
+            source.sendSuccess(() -> Component.literal(enabled
+                ? "Flight enabled. Double-tap jump to fly."
+                : "Flight disabled."), false);
+            return 1;
+        } catch (Exception exception) {
+            source.sendFailure(Component.literal("Run this command in-game as a player."));
+            return 0;
+        }
     }
 
     private static int setCorner(CommandSourceStack source, boolean first) {

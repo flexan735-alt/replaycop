@@ -8,6 +8,8 @@ import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.permissions.Permission;
+import net.minecraft.server.permissions.PermissionLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -34,7 +36,8 @@ public final class RecoMod implements ModInitializer {
             .then(Commands.literal("cancel").executes(ctx -> cancel(ctx.getSource()))));
 
         dispatcher.register(Commands.literal("fly")
-            .requires(source -> source.hasPermission(2))
+            .requires(source -> source.permissions().hasPermission(
+                new Permission.HasCommandLevel(PermissionLevel.GAMEMASTERS)))
             .then(Commands.literal("on").executes(ctx -> setFlight(ctx.getSource(), true)))
             .then(Commands.literal("off").executes(ctx -> setFlight(ctx.getSource(), false))));
     }

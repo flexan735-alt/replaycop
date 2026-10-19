@@ -15,6 +15,6 @@ jobs:
       - run: gradle build --no-daemon
       - uses: actions/upload-artifact@v4
         with:
-          name: arena-reco-jar
+          name: fly-in-survival-jar
           path: build/libs/*.jar
           if-no-files-found: error
